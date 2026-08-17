@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Holiday Scavenger Hunt</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #38bdf8;
+      --text: #f8fafc;
+      --gold: #f59e0b;
+    }
+
+    body {
+      margin: 0;
+      padding: 1rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #particle-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .header {
+      text-align: center;
+      padding: 1rem 0;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      color: var(--accent);
+    }
+
+    .header p {
+      margin: 0.25rem 0 0;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 1.2rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 0.5rem;
+    }
+
+    .wallet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .badge {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 0.75rem 0.5rem;
+      text-align: center;
+      font-size: 0.85rem;
+      word-break: break-word;
+    }
+
+    .badge.unlocked {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .leader-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .leader-row:last-child {
+      border-bottom: none;
+    }
+
+    .leader-name {
+      font-weight: 500;
+    }
+
+    .leader-score {
+      color: var(--gold);
+      font-weight: bold;
+    }
+
+    .status-alert {
+      background: #22c55e;
+      color: #000;
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-weight: bold;
+      text-align: center;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="particle-canvas"></canvas>
+
+  <div class="container">
+    <div class="header">
+      <h1>🎄 Holiday Scavenger Hunt</h1>
+      <p id="user-greeting">Loading player...</p>
+    </div>
+
+    <div id="status-box" class="status-alert"></div>
+
+    <!-- WALLET -->
+    <div class="card">
+      <h2>🎒 My Wallet</h2>
+      <div id="wallet-grid" class="wallet-grid">
+        <!-- Badges populate dynamically -->
+      </div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div class="card">
+      <h2>🏆 Live Leaderboard</h2>
+      <div id="leaderboard-list">
+        <p style="opacity:0.6;">Loading leaderboard...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // CONFIGURATION
+    // Replace these credentials with your values from jsonbin.io
+    // =========================================================================
+    const BIN_ID = "YOUR_BIN_ID_HERE";
+    const API_KEY = "YOUR_JSONBIN_MASTER_KEY_HERE";
+
+    // List of all QR codes hidden around the house
+    const ALL_CODES = ["kitchen_safe", "living_room_tree", "bookshelf", "attic_door", "garden_gnome"];
+
+    // =========================================================================
+    // STATE & INITIALIZATION
+    // =========================================================================
+    let playerName = localStorage.getItem('hunt_player_name');
+    let localWallet = JSON.parse(localStorage.getItem('hunt_wallet') || "[]");
+
+    async function initApp() {
+      // 1. Identify User
+      if (!playerName) {
+        playerName = prompt("Welcome to the Scavenger Hunt! What is your name?");
+        if (!playerName || !playerName.trim()) {
+          playerName = "Guest_" + Math.floor(Math.random() * 1000);
+        }
+        playerName = playerName.trim();
+        localStorage.setItem('hunt_player_name', playerName);
+      }
+      document.getElementById('user-greeting').textContent = `Player: ${playerName}`;
+
+      // 2. Check URL for scanned code (e.g. ?found=kitchen_safe)
+      const urlParams = new URLSearchParams(window.location.search);
+      const scannedCode = urlParams.get('found');
+
+      if (scannedCode) {
+        handleNewScan(scannedCode);
+      }
+
+      // 3. Render Views
+      renderWallet();
+      await syncAndLoadLeaderboard();
+    }
+
+    // =========================================================================
+    // CORE GAME LOGIC
+    // =========================================================================
+    async function handleNewScan(code) {
+      if (!localWallet.includes(code)) {
+        localWallet.push(code);
+        localStorage.setItem('hunt_wallet', JSON.stringify(localWallet));
+        
+        // Trigger Canvas Confetti
+        triggerCelebration();
+
+        // Show Alert
+        const statusBox = document.getElementById('status-box');
+        statusBox.textContent = `🎉 Unlocked new item: "${code}"!`;
+        statusBox.style.display = "block";
+
+        // Sync with Cloud
+        if (BIN_ID !== "YOUR_BIN_ID_HERE") {
+          await pushToCloud(playerName, code);
+        }
+      } else {
+        const statusBox = document.getElementById('status-box');
+        statusBox.textContent = `You already collected "${code}"!`;
+        statusBox.style.background = "#f59e0b";
+        statusBox.style.display = "block";
+      }
+
+      // Clean URL parameter without reloading page
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    function renderWallet() {
+      const grid = document.getElementById('wallet-grid');
+      grid.innerHTML = "";
+
+      ALL_CODES.forEach(code => {
+        const badge = document.createElement('div');
+        const isFound = localWallet.includes(code);
+        badge.className = `badge ${isFound ? 'unlocked' : ''}`;
+        badge.textContent = isFound ? `✓ ${code}` : '🔒 Locked';
+        grid.appendChild(badge);
+      });
+    }
+
+    // =========================================================================
+    // BACKEND / CLOUD SYNC (JSONBIN.IO)
+    // =========================================================================
+    async function fetchCloudData() {
+      try {
+        const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+          headers: { 'X-Master-Key': API_KEY }
+        });
+        const data = await res.json();
+        return data.record.players || [];
+      } catch (err) {
+        console.error("Failed to fetch cloud leaderboard:", err);
+        return [];
+      }
+    }
+
+    async function pushToCloud(name, newCode) {
+      const players = await fetchCloudData();
+      let player = players.find(p => p.name === name);
+
+      if (!player) {
+        player = { name: name, codes: [newCode] };
+        players.push(player);
+      } else if (!player.codes.includes(newCode)) {
+        player.codes.push(newCode);
+      }
+
+      try {
+        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': API_KEY
+          },
+          body: JSON.stringify({ players: players })
+        });
+        await syncAndLoadLeaderboard();
+      } catch (err) {
+        console.error("Failed to sync to cloud:", err);
+      }
+    }
+
+    async function syncAndLoadLeaderboard() {
+      const listContainer = document.getElementById('leaderboard-list');
+
+      if (BIN_ID === "YOUR_BIN_ID_HERE") {
+        listContainer.innerHTML = `<p style="opacity:0.6; font-size: 0.85rem;">Cloud DB not configured. Showing local stats.</p>
+        <div class="leader-row"><span class="leader-name">${playerName} (You)</span><span class="leader-score">${localWallet.length} Found</span></div>`;
+        return;
+      }
+
+      const players = await fetchCloudData();
+      players.sort((a, b) => b.codes.length - a.codes.length);
+
+      listContainer.innerHTML = "";
+      if (players.length === 0) {
+        listContainer.innerHTML = "<p style='opacity:0.6;'>No scores registered yet!</p>";
+        return;
+      }
+
+      players.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'leader-row';
+        row.innerHTML = `<span class="leader-name">${p.name}</span><span class="leader-score">${p.codes.length} Found</span>`;
+        listContainer.appendChild(row);
+      });
+    }
+
+    // =========================================================================
+    // CANVAS CELEBRATION EFFECT
+    // =========================================================================
+    function triggerCelebration() {
+      const canvas = document.getElementById('particle-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const particles = [];
+      const colors = ['#38bdf8', '#f59e0b', '#22c55e', '#ec4899', '#a855f7'];
+
+      for (let i = 0; i < 80; i++) {
+        particles.push({
+          x: canvas.width / 2,
+          y: canvas.height / 2,
+          vx: (Math.random() - 0.5) * 12,
+          vy: (Math.random() - 0.5) * 12,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          size: Math.random() * 6 + 3,
+          alpha: 1
+        });
+      }
+
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let activeParticles = 0;
+
+        particles.forEach(p => {
+          if (p.alpha > 0) {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.15; // Gravity
+            p.alpha -= 0.015;
+
+            ctx.globalAlpha = Math.max(0, p.alpha);
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            activeParticles++;
+          }
+        });
+
+        if (activeParticles > 0) {
+          requestAnimationFrame(animate);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+      animate();
+    }
+
+    // Run app on page load
+    initApp();
+  </script>
+</body>
+</html>
