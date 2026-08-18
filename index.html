@@ -11,6 +11,7 @@
       --accent: #38bdf8;
       --text: #f8fafc;
       --gold: #f59e0b;
+      --win: #a855f7;
     }
 
     body {
@@ -98,7 +99,8 @@
 
     .wallet-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      /* Made columns slightly wider to accommodate longer artifact names */
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
       gap: 0.75rem;
       margin-top: 1rem;
     }
@@ -111,18 +113,32 @@
       text-align: center;
       font-size: 0.85rem;
       word-break: break-word;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .badge .count {
+      font-size: 1.25rem;
+      font-weight: bold;
     }
 
     .badge.unlocked {
       background: rgba(56, 189, 248, 0.15);
       border-color: var(--accent);
       color: var(--accent);
-      font-weight: bold;
+    }
+
+    .badge.locked {
+      opacity: 0.6;
     }
 
     .leader-row {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       padding: 0.6rem 0;
       border-bottom: 1px solid rgba(255,255,255,0.05);
     }
@@ -138,6 +154,8 @@
     .leader-score {
       color: var(--gold);
       font-weight: bold;
+      text-align: right;
+      font-size: 0.9rem;
     }
 
     .status-alert {
@@ -169,7 +187,7 @@
         <!-- Options injected via JS -->
       </select>
       
-      <button id="claim-btn" class="btn">Claim Code</button>
+      <button id="claim-btn" class="btn">Draw Artifact</button>
     </div>
 
     <!-- MAIN DASHBOARD (Visible normally) -->
@@ -182,7 +200,7 @@
 
       <!-- LEADERBOARD -->
       <div class="card">
-        <h2>🏆 Live Leaderboard</h2>
+        <h2>🏆 Leaderboard (First to 6 wins!)</h2>
         <div id="leaderboard-list">
           <p style="opacity:0.6; text-align: center;">Loading leaderboard...</p>
         </div>
@@ -191,7 +209,7 @@
       <!-- WALLET VIEWER -->
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">
-          <h2 style="border: none; padding: 0; margin: 0;">🎒 View Wallet</h2>
+          <h2 style="border: none; padding: 0; margin: 0;">🎒 View Artifacts</h2>
         </div>
         <select id="wallet-select" class="dropdown" style="margin-top: 1rem; margin-bottom: 0;">
           <option value="" disabled selected>Select a player to view...</option>
@@ -209,7 +227,7 @@
     // =========================================================================
     // CONFIGURATION
     // =========================================================================
-    const BIN_ID = "6a837da4da38895dfef047ee";
+    const BIN_ID = "6a84abfcda38895dfef40243"; // NEW ARTIFACT BIN
     const API_KEY = "$2a$10$LTmQwHuXjH3CcNH3T6AJfuzPnQsrBiPqo56X.BdY.Ia7rAnPr9mXS";
 
     const PLAYERS = [
@@ -217,7 +235,14 @@
       "Lindsey", "Tim", "Mark", "Toni", "Sally", "Tom M", "Max", "Eliza", "Tom N"
     ];
 
-    const ALL_CODES = ["1", "2", "3", "4", "5"];
+    const ARTIFACTS = [
+      "Slice of Compulsory Cake", 
+      "Gluten-Free Brownie", 
+      "Knitting Needle", 
+      "Bag of Golf Clubs", 
+      "German Visa", 
+      "Pre-Flight Checklist"
+    ];
 
     // Global state to cache cloud data
     let globalCloudData = []; 
@@ -232,19 +257,15 @@
       const scannedCode = urlParams.get('found');
 
       if (scannedCode) {
-        // User scanned a code - show the claim screen
         document.getElementById('claim-view').style.display = 'block';
         document.getElementById('dashboard-view').style.display = 'none';
-        
         document.getElementById('claim-btn').onclick = () => handleClaim(scannedCode);
       } else {
-        // Normal visit - show dashboard directly
         document.getElementById('claim-view').style.display = 'none';
         document.getElementById('dashboard-view').style.display = 'flex';
         await loadAndRenderDashboard();
       }
 
-      // Handle changing the wallet viewer
       document.getElementById('wallet-select').addEventListener('change', (e) => {
         renderWallet(e.target.value);
       });
@@ -254,7 +275,6 @@
       const claimSelect = document.getElementById('player-select');
       const walletSelect = document.getElementById('wallet-select');
       
-      // Sort players alphabetically for easier finding
       const sortedPlayers = [...PLAYERS].sort();
 
       sortedPlayers.forEach(player => {
@@ -283,46 +303,55 @@
         return;
       }
 
-      // UI Loading state
       btn.disabled = true;
-      btn.textContent = "Syncing...";
+      btn.textContent = "Drawing Artifact...";
       select.disabled = true;
 
-      // 1. Fetch current cloud state to prevent overwriting
+      // 1. Fetch current cloud state
       globalCloudData = await fetchCloudData();
       
       let player = globalCloudData.find(p => p.name === name);
-      let alreadyFound = false;
 
       if (!player) {
-        player = { name: name, codes: [code] };
+        player = { name: name, codes: [], artifacts: [] };
         globalCloudData.push(player);
-      } else if (!player.codes.includes(code)) {
-        player.codes.push(code);
-      } else {
-        alreadyFound = true;
       }
+      
+      // Safety check for old data structure
+      if (!player.artifacts) player.artifacts = [];
 
-      // 2. If it's a new code for them, push the update to the cloud
-      if (!alreadyFound) {
+      // 2. Check if they already scanned this specific QR code
+      if (!player.codes.includes(code)) {
+        
+        // Draw a random artifact!
+        const drawnArtifact = ARTIFACTS[Math.floor(Math.random() * ARTIFACTS.length)];
+        
+        player.codes.push(code);
+        player.artifacts.push(drawnArtifact);
+        
         await pushToCloud(globalCloudData);
         triggerCelebration();
-        showStatus(`🎉 Awesome job, ${name}! You secured Code ${code}!`, "#22c55e");
+        showStatus(`🎉 Awesome job! You unlocked: ${drawnArtifact}!`, "#22c55e");
+        
+        // Check for Win Condition
+        const uniqueArtifactsCount = new Set(player.artifacts).size;
+        if (uniqueArtifactsCount === ARTIFACTS.length) {
+            setTimeout(() => {
+                alert(`🏆 INCREDIBLE! ${name} has collected all 6 unique artifacts and won the game!`);
+            }, 500);
+        }
+
       } else {
-        showStatus(`Whoops! You already found Code ${code}, ${name}!`, "#f59e0b");
+        showStatus(`Whoops! You already found this QR code, ${name}! Find a new one to draw again.`, "#f59e0b");
       }
 
       // 3. Switch views
       document.getElementById('claim-view').style.display = 'none';
       document.getElementById('dashboard-view').style.display = 'flex';
       
-      // Pre-select their name in the wallet viewer
       document.getElementById('wallet-select').value = name;
-      
-      // Clean URL parameter without reloading page
       window.history.replaceState({}, document.title, window.location.pathname);
 
-      // Render updated data
       renderLeaderboard();
       renderWallet(name);
     }
@@ -330,28 +359,40 @@
     async function loadAndRenderDashboard() {
       globalCloudData = await fetchCloudData();
       renderLeaderboard();
-      
-      // Clear wallet grid until they select a name
-      document.getElementById('wallet-grid').innerHTML = "<p style='opacity:0.6; grid-column: 1 / -1; text-align: center;'>Select a player above to see their codes.</p>";
+      document.getElementById('wallet-grid').innerHTML = "<p style='opacity:0.6; grid-column: 1 / -1; text-align: center;'>Select a player above to see their artifacts.</p>";
     }
 
     function renderLeaderboard() {
       const listContainer = document.getElementById('leaderboard-list');
       
-      // Filter out players with 0 codes and sort by score
-      let activePlayers = globalCloudData.filter(p => p.codes && p.codes.length > 0);
-      activePlayers.sort((a, b) => b.codes.length - a.codes.length);
+      let activePlayers = globalCloudData.filter(p => p.artifacts && p.artifacts.length > 0);
+      
+      // Sort: First by Unique Artifacts, then by Total Artifacts
+      activePlayers.sort((a, b) => {
+        const uniqueA = new Set(a.artifacts).size;
+        const uniqueB = new Set(b.artifacts).size;
+        if (uniqueB !== uniqueA) {
+            return uniqueB - uniqueA; 
+        }
+        return b.artifacts.length - a.artifacts.length;
+      });
 
       listContainer.innerHTML = "";
       if (activePlayers.length === 0) {
-        listContainer.innerHTML = "<p style='opacity:0.6; text-align: center;'>No codes found yet. The hunt is on!</p>";
+        listContainer.innerHTML = "<p style='opacity:0.6; text-align: center;'>No artifacts found yet. The hunt is on!</p>";
         return;
       }
 
       activePlayers.forEach(p => {
+        const uniqueCount = new Set(p.artifacts).size;
+        const totalCount = p.artifacts.length;
+        
         const row = document.createElement('div');
         row.className = 'leader-row';
-        row.innerHTML = `<span class="leader-name">${p.name}</span><span class="leader-score">${p.codes.length} Found</span>`;
+        row.innerHTML = `
+            <span class="leader-name">${p.name} ${uniqueCount === ARTIFACTS.length ? '👑' : ''}</span>
+            <span class="leader-score">${uniqueCount}/6 Unique<br><span style="font-size:0.75rem; font-weight:normal; opacity:0.8;">(${totalCount} Total)</span></span>
+        `;
         listContainer.appendChild(row);
       });
     }
@@ -361,13 +402,27 @@
       grid.innerHTML = "";
 
       const player = globalCloudData.find(p => p.name === playerName);
-      const playerCodes = player ? player.codes : [];
+      const playerArtifacts = player && player.artifacts ? player.artifacts : [];
 
-      ALL_CODES.forEach(code => {
+      // Count how many of each artifact the player has
+      const counts = {};
+      playerArtifacts.forEach(art => {
+          counts[art] = (counts[art] || 0) + 1;
+      });
+
+      // Display all 6 possible artifacts
+      ARTIFACTS.forEach(artifact => {
         const badge = document.createElement('div');
-        const isFound = playerCodes.includes(code);
-        badge.className = `badge ${isFound ? 'unlocked' : ''}`;
-        badge.textContent = isFound ? `✓ Code ${code}` : '🔒 Locked';
+        const count = counts[artifact] || 0;
+        
+        badge.className = `badge ${count > 0 ? 'unlocked' : 'locked'}`;
+        
+        if (count > 0) {
+            badge.innerHTML = `<span class="count">${count}x</span><span style="font-size: 0.8rem">${artifact}</span>`;
+        } else {
+            badge.innerHTML = `<span class="count">🔒</span><span style="font-size: 0.8rem">${artifact}</span>`;
+        }
+        
         grid.appendChild(badge);
       });
     }
@@ -442,7 +497,7 @@
           if (p.alpha > 0) {
             p.x += p.vx;
             p.y += p.vy;
-            p.vy += 0.15; // Gravity
+            p.vy += 0.15; 
             p.alpha -= 0.015;
 
             ctx.globalAlpha = Math.max(0, p.alpha);
