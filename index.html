@@ -12,6 +12,7 @@
       --text: #f8fafc;
       --gold: #f59e0b;
       --win: #a855f7;
+      --action: #ef4444;
     }
 
     body {
@@ -41,6 +42,7 @@
       display: flex;
       flex-direction: column;
       gap: 1.25rem;
+      padding-bottom: 2rem;
     }
 
     .header {
@@ -66,6 +68,14 @@
       font-size: 1.2rem;
       border-bottom: 1px solid rgba(255,255,255,0.1);
       padding-bottom: 0.5rem;
+    }
+
+    h3 {
+      font-size: 1rem;
+      color: #94a3b8;
+      margin: 1rem 0 0.5rem 0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .dropdown {
@@ -99,10 +109,8 @@
 
     .wallet-grid {
       display: grid;
-      /* Made columns slightly wider to accommodate longer artifact names */
       grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
       gap: 0.75rem;
-      margin-top: 1rem;
     }
 
     .badge {
@@ -111,7 +119,6 @@
       border-radius: 8px;
       padding: 0.75rem 0.5rem;
       text-align: center;
-      font-size: 0.85rem;
       word-break: break-word;
       display: flex;
       flex-direction: column;
@@ -120,19 +127,43 @@
       gap: 0.25rem;
     }
 
+    .badge .icon {
+      font-size: 2rem;
+      margin-bottom: 0.25rem;
+    }
+
     .badge .count {
-      font-size: 1.25rem;
+      font-size: 1.1rem;
       font-weight: bold;
     }
 
-    .badge.unlocked {
-      background: rgba(56, 189, 248, 0.15);
-      border-color: var(--accent);
-      color: var(--accent);
+    .badge .title {
+      font-size: 0.8rem;
+      line-height: 1.1;
+    }
+
+    /* Styles for progress states */
+    .badge.completed {
+      background: rgba(34, 197, 94, 0.15);
+      border-color: #22c55e;
+      color: #22c55e;
+    }
+    
+    .badge.partial {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: var(--gold);
+      color: var(--gold);
     }
 
     .badge.locked {
-      opacity: 0.6;
+      opacity: 0.5;
+      filter: grayscale(100%);
+    }
+
+    .badge.action-item {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: var(--action);
+      color: #fca5a5;
     }
 
     .leader-row {
@@ -143,14 +174,9 @@
       border-bottom: 1px solid rgba(255,255,255,0.05);
     }
 
-    .leader-row:last-child {
-      border-bottom: none;
-    }
-
-    .leader-name {
-      font-weight: 500;
-    }
-
+    .leader-row:last-child { border-bottom: none; }
+    .leader-name { font-weight: 500; }
+    
     .leader-score {
       color: var(--gold);
       font-weight: bold;
@@ -166,6 +192,7 @@
       font-weight: bold;
       text-align: center;
       display: none;
+      line-height: 1.4;
     }
   </style>
 </head>
@@ -175,7 +202,7 @@
 
   <div class="container">
     
-    <!-- CLAIM SCREEN (Only visible when a code is scanned) -->
+    <!-- CLAIM SCREEN -->
     <div id="claim-view" class="card" style="display: none; text-align: center; border: 2px solid var(--accent); margin-top: 1rem;">
       <h2 style="color: var(--accent); border: none; font-size: 1.5rem; padding: 0;">🎉 Code Found!</h2>
       <p style="font-size: 1.1rem; line-height: 1.4; margin-bottom: 1.5rem;">
@@ -184,13 +211,12 @@
       
       <select id="player-select" class="dropdown">
         <option value="" disabled selected>Select your name...</option>
-        <!-- Options injected via JS -->
       </select>
       
-      <button id="claim-btn" class="btn">Draw Artifact</button>
+      <button id="claim-btn" class="btn">Draw Item(s)!</button>
     </div>
 
-    <!-- MAIN DASHBOARD (Visible normally) -->
+    <!-- MAIN DASHBOARD -->
     <div id="dashboard-view" style="display: none; display: flex; flex-direction: column; gap: 1.25rem;">
       <div class="header">
         <h1>🏡 Croftview Hunt</h1>
@@ -200,7 +226,7 @@
 
       <!-- LEADERBOARD -->
       <div class="card">
-        <h2>🏆 Leaderboard (First to 6 wins!)</h2>
+        <h2>🏆 Leaderboard (First to 12 wins!)</h2>
         <div id="leaderboard-list">
           <p style="opacity:0.6; text-align: center;">Loading leaderboard...</p>
         </div>
@@ -208,16 +234,19 @@
 
       <!-- WALLET VIEWER -->
       <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">
-          <h2 style="border: none; padding: 0; margin: 0;">🎒 View Artifacts</h2>
-        </div>
+        <h2 style="border: none; padding: 0; margin: 0;">🎒 View Wallet</h2>
+        
         <select id="wallet-select" class="dropdown" style="margin-top: 1rem; margin-bottom: 0;">
           <option value="" disabled selected>Select a player to view...</option>
-          <!-- Options injected via JS -->
         </select>
-        <div id="wallet-grid" class="wallet-grid">
-          <!-- Badges populate dynamically -->
-        </div>
+        
+        <!-- Artifacts Grid -->
+        <h3 id="artifacts-header" style="display:none;">Required Artifacts</h3>
+        <div id="wallet-grid-artifacts" class="wallet-grid"></div>
+
+        <!-- Action Items Grid -->
+        <h3 id="actions-header" style="display:none;">Action Items</h3>
+        <div id="wallet-grid-actions" class="wallet-grid"></div>
       </div>
     </div>
 
@@ -227,7 +256,7 @@
     // =========================================================================
     // CONFIGURATION
     // =========================================================================
-    const BIN_ID = "6a84abfcda38895dfef40243"; // NEW ARTIFACT BIN
+    const BIN_ID = "6a84abfcda38895dfef40243";
     const API_KEY = "$2a$10$LTmQwHuXjH3CcNH3T6AJfuzPnQsrBiPqo56X.BdY.Ia7rAnPr9mXS";
 
     const PLAYERS = [
@@ -235,16 +264,25 @@
       "Lindsey", "Tim", "Mark", "Toni", "Sally", "Tom M", "Max", "Eliza", "Tom N"
     ];
 
-    const ARTIFACTS = [
-      "Slice of Compulsory Cake", 
-      "Gluten-Free Brownie", 
-      "Knitting Needle", 
-      "Bag of Golf Clubs", 
-      "German Visa", 
-      "Pre-Flight Checklist"
-    ];
+    // Generate codes "1" through "20"
+    const ALL_CODES = Array.from({length: 20}, (_, i) => (i + 1).toString());
 
-    // Global state to cache cloud data
+    // Master Item Dictionary with Drop Rates and Requirements
+    const ITEMS = {
+      // Artifacts (Required to win)
+      "Slice of Compulsory Cake": { type: "artifact", req: 4, chance: 30, icon: "🍰" },
+      "Gluten-Free Brownie":      { type: "artifact", req: 3, chance: 20, icon: "🟫" },
+      "Knitting Needle":          { type: "artifact", req: 2, chance: 15, icon: "🧶" },
+      "Bag of Golf Clubs":        { type: "artifact", req: 1, chance: 5,  icon: "⛳" },
+      "German Visa":              { type: "artifact", req: 1, chance: 5,  icon: "🛂" },
+      "Pre-Flight Checklist":     { type: "artifact", req: 1, chance: 5,  icon: "📋" },
+      
+      // Action Items (Extra tools)
+      "Trade Token":              { type: "action", chance: 15, icon: "🤝" },
+      "Hand of God":              { type: "action", chance: 5,  icon: "⚡" }
+    };
+
+    const TOTAL_REQUIRED_TO_WIN = 12;
     let globalCloudData = []; 
 
     // =========================================================================
@@ -274,81 +312,98 @@
     function populateDropdowns() {
       const claimSelect = document.getElementById('player-select');
       const walletSelect = document.getElementById('wallet-select');
-      
       const sortedPlayers = [...PLAYERS].sort();
 
       sortedPlayers.forEach(player => {
-        const opt1 = document.createElement('option');
-        opt1.value = player;
-        opt1.textContent = player;
-        claimSelect.appendChild(opt1);
-
-        const opt2 = document.createElement('option');
-        opt2.value = player;
-        opt2.textContent = player;
-        walletSelect.appendChild(opt2);
+        claimSelect.appendChild(new Option(player, player));
+        walletSelect.appendChild(new Option(player, player));
       });
     }
 
     // =========================================================================
-    // CORE LOGIC
+    // CORE LOGIC & DRAWING
     // =========================================================================
+    function drawRandomItem() {
+      const rand = Math.random() * 100;
+      let cumulative = 0;
+      for (const [name, data] of Object.entries(ITEMS)) {
+        cumulative += data.chance;
+        if (rand <= cumulative) return name;
+      }
+      return "Slice of Compulsory Cake"; // Failsafe
+    }
+
+    function calculatePlayerProgress(playerArtifacts) {
+      if (!playerArtifacts) return 0;
+      let counts = {};
+      playerArtifacts.forEach(item => counts[item] = (counts[item] || 0) + 1);
+      
+      let progress = 0;
+      for (const [name, data] of Object.entries(ITEMS)) {
+        if (data.type === 'artifact') {
+           progress += Math.min(counts[name] || 0, data.req); // Cap at requirement max
+        }
+      }
+      return progress;
+    }
+
     async function handleClaim(code) {
       const select = document.getElementById('player-select');
       const name = select.value;
       const btn = document.getElementById('claim-btn');
 
-      if (!name) {
-        alert("Please tell us who you are first!");
-        return;
-      }
+      if (!name) { alert("Please tell us who you are first!"); return; }
 
       btn.disabled = true;
-      btn.textContent = "Drawing Artifact...";
+      btn.textContent = "Drawing...";
       select.disabled = true;
 
-      // 1. Fetch current cloud state
       globalCloudData = await fetchCloudData();
-      
       let player = globalCloudData.find(p => p.name === name);
 
       if (!player) {
         player = { name: name, codes: [], artifacts: [] };
         globalCloudData.push(player);
       }
-      
-      // Safety check for old data structure
       if (!player.artifacts) player.artifacts = [];
 
-      // 2. Check if they already scanned this specific QR code
       if (!player.codes.includes(code)) {
         
-        // Draw a random artifact!
-        const drawnArtifact = ARTIFACTS[Math.floor(Math.random() * ARTIFACTS.length)];
+        // Check if this is their very first scan
+        const isFirstScan = player.codes.length === 0;
+        const numberOfDraws = isFirstScan ? 3 : 1;
+        
+        const drawnItems = [];
+        for(let i = 0; i < numberOfDraws; i++) {
+            drawnItems.push(drawRandomItem());
+        }
         
         player.codes.push(code);
-        player.artifacts.push(drawnArtifact);
+        player.artifacts.push(...drawnItems);
         
         await pushToCloud(globalCloudData);
         triggerCelebration();
-        showStatus(`🎉 Awesome job! You unlocked: ${drawnArtifact}!`, "#22c55e");
+
+        // Format nice alert message
+        const visualItems = drawnItems.map(item => `${ITEMS[item].icon} ${item}`).join(', ');
+        const introText = isFirstScan ? "🎉 FIRST SCAN BONUS! You drew 3 items:<br>" : "🎉 You found a code and drew:<br>";
+        showStatus(`${introText} ${visualItems}`, "#22c55e");
         
-        // Check for Win Condition
-        const uniqueArtifactsCount = new Set(player.artifacts).size;
-        if (uniqueArtifactsCount === ARTIFACTS.length) {
+        // Check Win Condition
+        const currentProgress = calculatePlayerProgress(player.artifacts);
+        if (currentProgress === TOTAL_REQUIRED_TO_WIN) {
             setTimeout(() => {
-                alert(`🏆 INCREDIBLE! ${name} has collected all 6 unique artifacts and won the game!`);
+                alert(`🏆 INCREDIBLE! ${name} has collected all 12 required artifacts and WON THE GAME!`);
             }, 500);
         }
 
       } else {
-        showStatus(`Whoops! You already found this QR code, ${name}! Find a new one to draw again.`, "#f59e0b");
+        showStatus(`Whoops! You already claimed Code ${code}, ${name}! Find a new one to draw again.`, "#f59e0b");
       }
 
-      // 3. Switch views
+      // Switch views and clean URL
       document.getElementById('claim-view').style.display = 'none';
       document.getElementById('dashboard-view').style.display = 'flex';
-      
       document.getElementById('wallet-select').value = name;
       window.history.replaceState({}, document.title, window.location.pathname);
 
@@ -359,77 +414,95 @@
     async function loadAndRenderDashboard() {
       globalCloudData = await fetchCloudData();
       renderLeaderboard();
-      document.getElementById('wallet-grid').innerHTML = "<p style='opacity:0.6; grid-column: 1 / -1; text-align: center;'>Select a player above to see their artifacts.</p>";
     }
 
     function renderLeaderboard() {
       const listContainer = document.getElementById('leaderboard-list');
-      
       let activePlayers = globalCloudData.filter(p => p.artifacts && p.artifacts.length > 0);
       
-      // Sort: First by Unique Artifacts, then by Total Artifacts
+      // Sort by valid progress first, then by total items held
       activePlayers.sort((a, b) => {
-        const uniqueA = new Set(a.artifacts).size;
-        const uniqueB = new Set(b.artifacts).size;
-        if (uniqueB !== uniqueA) {
-            return uniqueB - uniqueA; 
-        }
+        const progA = calculatePlayerProgress(a.artifacts);
+        const progB = calculatePlayerProgress(b.artifacts);
+        if (progB !== progA) return progB - progA; 
         return b.artifacts.length - a.artifacts.length;
       });
 
       listContainer.innerHTML = "";
       if (activePlayers.length === 0) {
-        listContainer.innerHTML = "<p style='opacity:0.6; text-align: center;'>No artifacts found yet. The hunt is on!</p>";
+        listContainer.innerHTML = "<p style='opacity:0.6; text-align: center;'>No codes found yet!</p>";
         return;
       }
 
       activePlayers.forEach(p => {
-        const uniqueCount = new Set(p.artifacts).size;
-        const totalCount = p.artifacts.length;
+        const progress = calculatePlayerProgress(p.artifacts);
         
         const row = document.createElement('div');
         row.className = 'leader-row';
         row.innerHTML = `
-            <span class="leader-name">${p.name} ${uniqueCount === ARTIFACTS.length ? '👑' : ''}</span>
-            <span class="leader-score">${uniqueCount}/6 Unique<br><span style="font-size:0.75rem; font-weight:normal; opacity:0.8;">(${totalCount} Total)</span></span>
+            <span class="leader-name">${p.name} ${progress === TOTAL_REQUIRED_TO_WIN ? '👑' : ''}</span>
+            <span class="leader-score">${progress}/12 Required<br>
+            <span style="font-size:0.75rem; font-weight:normal; opacity:0.8;">(${p.codes.length} Codes Scanned)</span></span>
         `;
         listContainer.appendChild(row);
       });
     }
 
     function renderWallet(playerName) {
-      const grid = document.getElementById('wallet-grid');
-      grid.innerHTML = "";
+      const artGrid = document.getElementById('wallet-grid-artifacts');
+      const actGrid = document.getElementById('wallet-grid-actions');
+      document.getElementById('artifacts-header').style.display = 'block';
+      document.getElementById('actions-header').style.display = 'block';
+      
+      artGrid.innerHTML = "";
+      actGrid.innerHTML = "";
 
       const player = globalCloudData.find(p => p.name === playerName);
       const playerArtifacts = player && player.artifacts ? player.artifacts : [];
 
-      // Count how many of each artifact the player has
       const counts = {};
-      playerArtifacts.forEach(art => {
-          counts[art] = (counts[art] || 0) + 1;
-      });
+      playerArtifacts.forEach(art => counts[art] = (counts[art] || 0) + 1);
 
-      // Display all 6 possible artifacts
-      ARTIFACTS.forEach(artifact => {
+      for (const [itemName, data] of Object.entries(ITEMS)) {
+        const count = counts[itemName] || 0;
         const badge = document.createElement('div');
-        const count = counts[artifact] || 0;
         
-        badge.className = `badge ${count > 0 ? 'unlocked' : 'locked'}`;
-        
-        if (count > 0) {
-            badge.innerHTML = `<span class="count">${count}x</span><span style="font-size: 0.8rem">${artifact}</span>`;
+        if (data.type === 'artifact') {
+            // ARTIFACT LOGIC
+            let statusClass = 'locked';
+            if (count >= data.req) statusClass = 'completed';
+            else if (count > 0) statusClass = 'partial';
+
+            badge.className = `badge ${statusClass}`;
+            badge.innerHTML = `
+                <span class="icon">${data.icon}</span>
+                <span class="count">${count}/${data.req}</span>
+                <span class="title">${itemName}</span>
+            `;
+            artGrid.appendChild(badge);
         } else {
-            badge.innerHTML = `<span class="count">🔒</span><span style="font-size: 0.8rem">${artifact}</span>`;
+            // ACTION ITEM LOGIC
+            if (count > 0) {
+                badge.className = `badge action-item`;
+                badge.innerHTML = `
+                    <span class="icon">${data.icon}</span>
+                    <span class="count">${count}x</span>
+                    <span class="title">${itemName}</span>
+                `;
+                actGrid.appendChild(badge);
+            }
         }
-        
-        grid.appendChild(badge);
-      });
+      }
+
+      // If no action items, show a placeholder
+      if (actGrid.innerHTML === "") {
+          actGrid.innerHTML = "<p style='font-size: 0.85rem; opacity: 0.6;'>No action items found yet.</p>";
+      }
     }
 
     function showStatus(message, color) {
       const statusBox = document.getElementById('status-box');
-      statusBox.textContent = message;
+      statusBox.innerHTML = message;
       statusBox.style.background = color;
       statusBox.style.display = "block";
     }
@@ -518,7 +591,6 @@
       animate();
     }
 
-    // Run app on page load
     initApp();
   </script>
 </body>
