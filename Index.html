@@ -162,11 +162,11 @@
     // CONFIGURATION
     // Replace these credentials with your values from jsonbin.io
     // =========================================================================
-    const BIN_ID = "YOUR_BIN_ID_HERE";
-    const API_KEY = "YOUR_JSONBIN_MASTER_KEY_HERE";
+    const BIN_ID = "6a837da4da38895dfef047ee";
+    const API_KEY = "$2a$10$LTmQwHuXjH3CcNH3T6AJfuzPnQsrBiPqo56X.BdY.Ia7rAnPr9mXS";
 
     // List of all QR codes hidden around the house
-    const ALL_CODES = ["kitchen_safe", "living_room_tree", "bookshelf", "attic_door", "garden_gnome"];
+    const ALL_CODES = ["1", "2", "3", "4", "5"];
 
     // =========================================================================
     // STATE & INITIALIZATION
@@ -216,7 +216,7 @@
         statusBox.style.display = "block";
 
         // Sync with Cloud
-        if (BIN_ID !== "YOUR_BIN_ID_HERE") {
+        if (BIN_ID !== "6a837da4da38895dfef047ee") {
           await pushToCloud(playerName, code);
         }
       } else {
@@ -288,7 +288,7 @@
     async function syncAndLoadLeaderboard() {
       const listContainer = document.getElementById('leaderboard-list');
 
-      if (BIN_ID === "YOUR_BIN_ID_HERE") {
+      if (BIN_ID === "6a837da4da38895dfef047ee") {
         listContainer.innerHTML = `<p style="opacity:0.6; font-size: 0.85rem;">Cloud DB not configured. Showing local stats.</p>
         <div class="leader-row"><span class="leader-name">${playerName} (You)</span><span class="leader-score">${localWallet.length} Found</span></div>`;
         return;
