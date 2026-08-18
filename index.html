@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Holiday Scavenger Hunt</title>
+  <title>Croftview Scavenger Hunt</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -44,19 +44,13 @@
 
     .header {
       text-align: center;
-      padding: 1rem 0;
+      padding: 1rem 0 0 0;
     }
 
     .header h1 {
       margin: 0;
       font-size: 1.75rem;
       color: var(--accent);
-    }
-
-    .header p {
-      margin: 0.25rem 0 0;
-      font-size: 0.9rem;
-      opacity: 0.8;
     }
 
     .card {
@@ -73,9 +67,38 @@
       padding-bottom: 0.5rem;
     }
 
+    .dropdown {
+      width: 100%;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      color: #000;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .wallet-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
       gap: 0.75rem;
       margin-top: 1rem;
     }
@@ -133,118 +156,231 @@
   <canvas id="particle-canvas"></canvas>
 
   <div class="container">
-    <div class="header">
-      <h1>🎄 Holiday Scavenger Hunt</h1>
-      <p id="user-greeting">Loading player...</p>
+    
+    <!-- CLAIM SCREEN (Only visible when a code is scanned) -->
+    <div id="claim-view" class="card" style="display: none; text-align: center; border: 2px solid var(--accent); margin-top: 1rem;">
+      <h2 style="color: var(--accent); border: none; font-size: 1.5rem; padding: 0;">🎉 Code Found!</h2>
+      <p style="font-size: 1.1rem; line-height: 1.4; margin-bottom: 1.5rem;">
+        Welcome to the Croftview Scavenger Hunt!<br>Who found this code?
+      </p>
+      
+      <select id="player-select" class="dropdown">
+        <option value="" disabled selected>Select your name...</option>
+        <!-- Options injected via JS -->
+      </select>
+      
+      <button id="claim-btn" class="btn">Claim Code</button>
     </div>
 
-    <div id="status-box" class="status-alert"></div>
+    <!-- MAIN DASHBOARD (Visible normally) -->
+    <div id="dashboard-view" style="display: none; display: flex; flex-direction: column; gap: 1.25rem;">
+      <div class="header">
+        <h1>🏡 Croftview Hunt</h1>
+      </div>
 
-    <!-- WALLET -->
-    <div class="card">
-      <h2>🎒 My Wallet</h2>
-      <div id="wallet-grid" class="wallet-grid">
-        <!-- Badges populate dynamically -->
+      <div id="status-box" class="status-alert"></div>
+
+      <!-- LEADERBOARD -->
+      <div class="card">
+        <h2>🏆 Live Leaderboard</h2>
+        <div id="leaderboard-list">
+          <p style="opacity:0.6; text-align: center;">Loading leaderboard...</p>
+        </div>
+      </div>
+
+      <!-- WALLET VIEWER -->
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">
+          <h2 style="border: none; padding: 0; margin: 0;">🎒 View Wallet</h2>
+        </div>
+        <select id="wallet-select" class="dropdown" style="margin-top: 1rem; margin-bottom: 0;">
+          <option value="" disabled selected>Select a player to view...</option>
+          <!-- Options injected via JS -->
+        </select>
+        <div id="wallet-grid" class="wallet-grid">
+          <!-- Badges populate dynamically -->
+        </div>
       </div>
     </div>
 
-    <!-- LEADERBOARD -->
-    <div class="card">
-      <h2>🏆 Live Leaderboard</h2>
-      <div id="leaderboard-list">
-        <p style="opacity:0.6;">Loading leaderboard...</p>
-      </div>
-    </div>
   </div>
 
   <script>
     // =========================================================================
     // CONFIGURATION
-    // Replace these credentials with your values from jsonbin.io
     // =========================================================================
     const BIN_ID = "6a837da4da38895dfef047ee";
     const API_KEY = "$2a$10$LTmQwHuXjH3CcNH3T6AJfuzPnQsrBiPqo56X.BdY.Ia7rAnPr9mXS";
 
-    // List of all QR codes hidden around the house
+    const PLAYERS = [
+      "Great Granny", "David", "Kay", "Carol", "Nick", "Julie", "Andrew", 
+      "Lindsey", "Tim", "Mark", "Toni", "Sally", "Tom M", "Max", "Eliza", "Tom N"
+    ];
+
     const ALL_CODES = ["1", "2", "3", "4", "5"];
 
-    // =========================================================================
-    // STATE & INITIALIZATION
-    // =========================================================================
-    let playerName = localStorage.getItem('hunt_player_name');
-    let localWallet = JSON.parse(localStorage.getItem('hunt_wallet') || "[]");
+    // Global state to cache cloud data
+    let globalCloudData = []; 
 
+    // =========================================================================
+    // INITIALIZATION
+    // =========================================================================
     async function initApp() {
-      // 1. Identify User
-      if (!playerName) {
-        playerName = prompt("Welcome to the Scavenger Hunt! What is your name?");
-        if (!playerName || !playerName.trim()) {
-          playerName = "Guest_" + Math.floor(Math.random() * 1000);
-        }
-        playerName = playerName.trim();
-        localStorage.setItem('hunt_player_name', playerName);
-      }
-      document.getElementById('user-greeting').textContent = `Player: ${playerName}`;
+      populateDropdowns();
 
-      // 2. Check URL for scanned code (e.g. ?found=kitchen_safe)
       const urlParams = new URLSearchParams(window.location.search);
       const scannedCode = urlParams.get('found');
 
       if (scannedCode) {
-        handleNewScan(scannedCode);
-      }
-
-      // 3. Render Views
-      renderWallet();
-      await syncAndLoadLeaderboard();
-    }
-
-    // =========================================================================
-    // CORE GAME LOGIC
-    // =========================================================================
-    async function handleNewScan(code) {
-      if (!localWallet.includes(code)) {
-        localWallet.push(code);
-        localStorage.setItem('hunt_wallet', JSON.stringify(localWallet));
+        // User scanned a code - show the claim screen
+        document.getElementById('claim-view').style.display = 'block';
+        document.getElementById('dashboard-view').style.display = 'none';
         
-        // Trigger Canvas Confetti
-        triggerCelebration();
-
-        // Show Alert
-        const statusBox = document.getElementById('status-box');
-        statusBox.textContent = `🎉 Unlocked new item: "${code}"!`;
-        statusBox.style.display = "block";
-
-        // Sync with Cloud
-        if (BIN_ID !== "6a837da4da38895dfef047ee") {
-          await pushToCloud(playerName, code);
-        }
+        document.getElementById('claim-btn').onclick = () => handleClaim(scannedCode);
       } else {
-        const statusBox = document.getElementById('status-box');
-        statusBox.textContent = `You already collected "${code}"!`;
-        statusBox.style.background = "#f59e0b";
-        statusBox.style.display = "block";
+        // Normal visit - show dashboard directly
+        document.getElementById('claim-view').style.display = 'none';
+        document.getElementById('dashboard-view').style.display = 'flex';
+        await loadAndRenderDashboard();
       }
 
-      // Clean URL parameter without reloading page
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Handle changing the wallet viewer
+      document.getElementById('wallet-select').addEventListener('change', (e) => {
+        renderWallet(e.target.value);
+      });
     }
 
-    function renderWallet() {
-      const grid = document.getElementById('wallet-grid');
-      grid.innerHTML = "";
+    function populateDropdowns() {
+      const claimSelect = document.getElementById('player-select');
+      const walletSelect = document.getElementById('wallet-select');
+      
+      // Sort players alphabetically for easier finding
+      const sortedPlayers = [...PLAYERS].sort();
 
-      ALL_CODES.forEach(code => {
-        const badge = document.createElement('div');
-        const isFound = localWallet.includes(code);
-        badge.className = `badge ${isFound ? 'unlocked' : ''}`;
-        badge.textContent = isFound ? `✓ ${code}` : '🔒 Locked';
-        grid.appendChild(badge);
+      sortedPlayers.forEach(player => {
+        const opt1 = document.createElement('option');
+        opt1.value = player;
+        opt1.textContent = player;
+        claimSelect.appendChild(opt1);
+
+        const opt2 = document.createElement('option');
+        opt2.value = player;
+        opt2.textContent = player;
+        walletSelect.appendChild(opt2);
       });
     }
 
     // =========================================================================
-    // BACKEND / CLOUD SYNC (JSONBIN.IO)
+    // CORE LOGIC
+    // =========================================================================
+    async function handleClaim(code) {
+      const select = document.getElementById('player-select');
+      const name = select.value;
+      const btn = document.getElementById('claim-btn');
+
+      if (!name) {
+        alert("Please tell us who you are first!");
+        return;
+      }
+
+      // UI Loading state
+      btn.disabled = true;
+      btn.textContent = "Syncing...";
+      select.disabled = true;
+
+      // 1. Fetch current cloud state to prevent overwriting
+      globalCloudData = await fetchCloudData();
+      
+      let player = globalCloudData.find(p => p.name === name);
+      let alreadyFound = false;
+
+      if (!player) {
+        player = { name: name, codes: [code] };
+        globalCloudData.push(player);
+      } else if (!player.codes.includes(code)) {
+        player.codes.push(code);
+      } else {
+        alreadyFound = true;
+      }
+
+      // 2. If it's a new code for them, push the update to the cloud
+      if (!alreadyFound) {
+        await pushToCloud(globalCloudData);
+        triggerCelebration();
+        showStatus(`🎉 Awesome job, ${name}! You secured Code ${code}!`, "#22c55e");
+      } else {
+        showStatus(`Whoops! You already found Code ${code}, ${name}!`, "#f59e0b");
+      }
+
+      // 3. Switch views
+      document.getElementById('claim-view').style.display = 'none';
+      document.getElementById('dashboard-view').style.display = 'flex';
+      
+      // Pre-select their name in the wallet viewer
+      document.getElementById('wallet-select').value = name;
+      
+      // Clean URL parameter without reloading page
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Render updated data
+      renderLeaderboard();
+      renderWallet(name);
+    }
+
+    async function loadAndRenderDashboard() {
+      globalCloudData = await fetchCloudData();
+      renderLeaderboard();
+      
+      // Clear wallet grid until they select a name
+      document.getElementById('wallet-grid').innerHTML = "<p style='opacity:0.6; grid-column: 1 / -1; text-align: center;'>Select a player above to see their codes.</p>";
+    }
+
+    function renderLeaderboard() {
+      const listContainer = document.getElementById('leaderboard-list');
+      
+      // Filter out players with 0 codes and sort by score
+      let activePlayers = globalCloudData.filter(p => p.codes && p.codes.length > 0);
+      activePlayers.sort((a, b) => b.codes.length - a.codes.length);
+
+      listContainer.innerHTML = "";
+      if (activePlayers.length === 0) {
+        listContainer.innerHTML = "<p style='opacity:0.6; text-align: center;'>No codes found yet. The hunt is on!</p>";
+        return;
+      }
+
+      activePlayers.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'leader-row';
+        row.innerHTML = `<span class="leader-name">${p.name}</span><span class="leader-score">${p.codes.length} Found</span>`;
+        listContainer.appendChild(row);
+      });
+    }
+
+    function renderWallet(playerName) {
+      const grid = document.getElementById('wallet-grid');
+      grid.innerHTML = "";
+
+      const player = globalCloudData.find(p => p.name === playerName);
+      const playerCodes = player ? player.codes : [];
+
+      ALL_CODES.forEach(code => {
+        const badge = document.createElement('div');
+        const isFound = playerCodes.includes(code);
+        badge.className = `badge ${isFound ? 'unlocked' : ''}`;
+        badge.textContent = isFound ? `✓ Code ${code}` : '🔒 Locked';
+        grid.appendChild(badge);
+      });
+    }
+
+    function showStatus(message, color) {
+      const statusBox = document.getElementById('status-box');
+      statusBox.textContent = message;
+      statusBox.style.background = color;
+      statusBox.style.display = "block";
+    }
+
+    // =========================================================================
+    // BACKEND (JSONBIN.IO)
     // =========================================================================
     async function fetchCloudData() {
       try {
@@ -259,17 +395,7 @@
       }
     }
 
-    async function pushToCloud(name, newCode) {
-      const players = await fetchCloudData();
-      let player = players.find(p => p.name === name);
-
-      if (!player) {
-        player = { name: name, codes: [newCode] };
-        players.push(player);
-      } else if (!player.codes.includes(newCode)) {
-        player.codes.push(newCode);
-      }
-
+    async function pushToCloud(updatedPlayers) {
       try {
         await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
           method: 'PUT',
@@ -277,38 +403,11 @@
             'Content-Type': 'application/json',
             'X-Master-Key': API_KEY
           },
-          body: JSON.stringify({ players: players })
+          body: JSON.stringify({ players: updatedPlayers })
         });
-        await syncAndLoadLeaderboard();
       } catch (err) {
         console.error("Failed to sync to cloud:", err);
       }
-    }
-
-    async function syncAndLoadLeaderboard() {
-      const listContainer = document.getElementById('leaderboard-list');
-
-      if (BIN_ID === "6a837da4da38895dfef047ee") {
-        listContainer.innerHTML = `<p style="opacity:0.6; font-size: 0.85rem;">Cloud DB not configured. Showing local stats.</p>
-        <div class="leader-row"><span class="leader-name">${playerName} (You)</span><span class="leader-score">${localWallet.length} Found</span></div>`;
-        return;
-      }
-
-      const players = await fetchCloudData();
-      players.sort((a, b) => b.codes.length - a.codes.length);
-
-      listContainer.innerHTML = "";
-      if (players.length === 0) {
-        listContainer.innerHTML = "<p style='opacity:0.6;'>No scores registered yet!</p>";
-        return;
-      }
-
-      players.forEach(p => {
-        const row = document.createElement('div');
-        row.className = 'leader-row';
-        row.innerHTML = `<span class="leader-name">${p.name}</span><span class="leader-score">${p.codes.length} Found</span>`;
-        listContainer.appendChild(row);
-      });
     }
 
     // =========================================================================
