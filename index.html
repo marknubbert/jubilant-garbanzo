@@ -13,6 +13,8 @@
       --gold: #f59e0b;
       --win: #a855f7;
       --action: #ef4444;
+      --danger: #dc2626;
+      --success: #22c55e;
     }
 
     body {
@@ -47,13 +49,45 @@
 
     .header {
       text-align: center;
-      padding: 1rem 0 0 0;
+      padding: 0.5rem 0 0 0;
     }
 
     .header h1 {
       margin: 0;
       font-size: 1.75rem;
       color: var(--accent);
+    }
+
+    .profile-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255,255,255,0.05);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .profile-bar button {
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 1.25rem;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .notif-badge {
+      position: absolute;
+      top: -5px;
+      right: -8px;
+      background: var(--action);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: bold;
+      border-radius: 50%;
+      padding: 2px 6px;
+      display: none;
     }
 
     .card {
@@ -102,10 +136,11 @@
       transition: opacity 0.2s;
     }
 
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    .btn-secondary { background: #475569; color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-success { background: var(--success); color: black; }
+
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .wallet-grid {
       display: grid;
@@ -125,46 +160,19 @@
       justify-content: center;
       align-items: center;
       gap: 0.25rem;
+      transition: transform 0.1s;
     }
 
-    .badge .icon {
-      font-size: 2rem;
-      margin-bottom: 0.25rem;
-    }
+    .badge .icon { font-size: 2rem; margin-bottom: 0.25rem; }
+    .badge .count { font-size: 1.1rem; font-weight: bold; }
+    .badge .title { font-size: 0.8rem; line-height: 1.1; }
 
-    .badge .count {
-      font-size: 1.1rem;
-      font-weight: bold;
-    }
-
-    .badge .title {
-      font-size: 0.8rem;
-      line-height: 1.1;
-    }
-
-    /* Styles for progress states */
-    .badge.completed {
-      background: rgba(34, 197, 94, 0.15);
-      border-color: #22c55e;
-      color: #22c55e;
-    }
+    .badge.completed { background: rgba(34, 197, 94, 0.15); border-color: #22c55e; color: #22c55e; }
+    .badge.partial { background: rgba(245, 158, 11, 0.15); border-color: var(--gold); color: var(--gold); }
+    .badge.locked { opacity: 0.5; filter: grayscale(100%); }
+    .badge.action-item { background: rgba(239, 68, 68, 0.15); border-color: var(--action); color: #fca5a5; }
     
-    .badge.partial {
-      background: rgba(245, 158, 11, 0.15);
-      border-color: var(--gold);
-      color: var(--gold);
-    }
-
-    .badge.locked {
-      opacity: 0.5;
-      filter: grayscale(100%);
-    }
-
-    .badge.action-item {
-      background: rgba(239, 68, 68, 0.15);
-      border-color: var(--action);
-      color: #fca5a5;
-    }
+    .badge.clickable:hover { transform: scale(1.05); cursor: pointer; border-color: white; }
 
     .leader-row {
       display: flex;
@@ -173,16 +181,9 @@
       padding: 0.6rem 0;
       border-bottom: 1px solid rgba(255,255,255,0.05);
     }
-
     .leader-row:last-child { border-bottom: none; }
     .leader-name { font-weight: 500; }
-    
-    .leader-score {
-      color: var(--gold);
-      font-weight: bold;
-      text-align: right;
-      font-size: 0.9rem;
-    }
+    .leader-score { color: var(--gold); font-weight: bold; text-align: right; font-size: 0.9rem; }
 
     .status-alert {
       background: #22c55e;
@@ -194,6 +195,21 @@
       display: none;
       line-height: 1.4;
     }
+
+    /* MODAL STYLES */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.8);
+      display: none; justify-content: center; align-items: center; z-index: 1000;
+      padding: 1rem; box-sizing: border-box;
+    }
+    .modal-content {
+      background: var(--card); border-radius: 12px; padding: 1.5rem; width: 100%; max-width: 400px;
+    }
+    .notif-item {
+      background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid rgba(255,255,255,0.1);
+    }
+    .notif-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -202,26 +218,41 @@
 
   <div class="container">
     
+    <!-- HEADER & PROFILE -->
+    <div class="header">
+      <h1>🏡 Croftview Hunt</h1>
+    </div>
+    
+    <div id="profile-bar" class="profile-bar" style="display: none;">
+      <div>
+        <span style="font-size: 0.85rem; opacity: 0.8;">Playing as:</span><br>
+        <strong id="display-logged-user" style="color: var(--accent);">User</strong>
+        <a href="#" onclick="logout()" style="color: #94a3b8; font-size: 0.75rem; margin-left: 10px;">(Change)</a>
+      </div>
+      <div style="display: flex; gap: 1rem;">
+        <button onclick="refreshData()" title="Refresh Data">🔄</button>
+        <button onclick="openNotifModal()" title="Notifications">
+          🔔<span id="notif-badge" class="notif-badge">0</span>
+        </button>
+      </div>
+    </div>
+
     <!-- CLAIM SCREEN -->
-    <div id="claim-view" class="card" style="display: none; text-align: center; border: 2px solid var(--accent); margin-top: 1rem;">
+    <div id="claim-view" class="card" style="display: none; text-align: center; border: 2px solid var(--accent);">
       <h2 style="color: var(--accent); border: none; font-size: 1.5rem; padding: 0;">🎉 Code Found!</h2>
-      <p style="font-size: 1.1rem; line-height: 1.4; margin-bottom: 1.5rem;">
-        Welcome to the Croftview Scavenger Hunt!<br>Who found this code?
-      </p>
       
-      <select id="player-select" class="dropdown">
-        <option value="" disabled selected>Select your name...</option>
-      </select>
+      <div id="claim-login-section">
+        <p style="font-size: 1.1rem; line-height: 1.4; margin-bottom: 1.5rem;">Who is scanning this code?</p>
+        <select id="player-select" class="dropdown">
+          <option value="" disabled selected>Select your name...</option>
+        </select>
+      </div>
       
-      <button id="claim-btn" class="btn">Draw Item(s)!</button>
+      <button id="claim-btn" class="btn" onclick="handleClaim()">Claim Item(s)!</button>
     </div>
 
     <!-- MAIN DASHBOARD -->
     <div id="dashboard-view" style="display: none; display: flex; flex-direction: column; gap: 1.25rem;">
-      <div class="header">
-        <h1>🏡 Croftview Hunt</h1>
-      </div>
-
       <div id="status-box" class="status-alert"></div>
 
       <!-- LEADERBOARD -->
@@ -240,16 +271,51 @@
           <option value="" disabled selected>Select a player to view...</option>
         </select>
         
-        <!-- Artifacts Grid -->
         <h3 id="artifacts-header" style="display:none;">Required Artifacts</h3>
         <div id="wallet-grid-artifacts" class="wallet-grid"></div>
 
-        <!-- Action Items Grid -->
         <h3 id="actions-header" style="display:none;">Action Items</h3>
         <div id="wallet-grid-actions" class="wallet-grid"></div>
+        <p id="action-hint" style="display:none; font-size: 0.8rem; color: #94a3b8; text-align: center; margin-top: 10px;">
+          Tap an action item to use it!
+        </p>
       </div>
     </div>
+  </div>
 
+  <!-- ACTION MODAL (Trade/Steal) -->
+  <div id="action-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h2 id="action-title" style="color: var(--accent);">Use Item</h2>
+      <p id="action-desc" style="font-size: 0.9rem; margin-bottom: 1rem;"></p>
+      
+      <label style="font-size: 0.85rem; color: #94a3b8;">Target Player:</label>
+      <select id="action-target-player" class="dropdown" onchange="populateActionItems()"></select>
+      
+      <label style="font-size: 0.85rem; color: #94a3b8;">Target Artifact:</label>
+      <select id="action-target-item" class="dropdown"></select>
+      
+      <div id="trade-offer-section" style="display: none;">
+        <label style="font-size: 0.85rem; color: #94a3b8;">Your Offer:</label>
+        <select id="action-offer-item" class="dropdown"></select>
+      </div>
+
+      <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+        <button class="btn btn-secondary" onclick="closeModal('action-modal')">Cancel</button>
+        <button id="action-submit-btn" class="btn" onclick="submitAction()">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATIONS MODAL -->
+  <div id="notif-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h2 style="color: var(--accent);">🔔 Notifications</h2>
+      <div id="notif-list" style="max-height: 60vh; overflow-y: auto;">
+        <!-- Notifs injected here -->
+      </div>
+      <button class="btn btn-secondary" style="margin-top: 1rem;" onclick="closeModal('notif-modal')">Close</button>
+    </div>
   </div>
 
   <script>
@@ -264,26 +330,26 @@
       "Lindsey", "Tim", "Mark", "Toni", "Sally", "Tom M", "Max", "Eliza", "Tom N"
     ];
 
-    // Generate codes "1" through "20"
-    const ALL_CODES = Array.from({length: 20}, (_, i) => (i + 1).toString());
-
-    // Master Item Dictionary with Drop Rates and Requirements
     const ITEMS = {
-      // Artifacts (Required to win)
       "Slice of Compulsory Cake": { type: "artifact", req: 4, chance: 30, icon: "🍰" },
       "Gluten-Free Brownie":      { type: "artifact", req: 3, chance: 20, icon: "🟫" },
       "Knitting Needle":          { type: "artifact", req: 2, chance: 15, icon: "🧶" },
       "Bag of Golf Clubs":        { type: "artifact", req: 1, chance: 5,  icon: "⛳" },
       "German Visa":              { type: "artifact", req: 1, chance: 5,  icon: "🛂" },
       "Pre-Flight Checklist":     { type: "artifact", req: 1, chance: 5,  icon: "📋" },
-      
-      // Action Items (Extra tools)
       "Trade Token":              { type: "action", chance: 15, icon: "🤝" },
       "Hand of God":              { type: "action", chance: 5,  icon: "⚡" }
     };
 
     const TOTAL_REQUIRED_TO_WIN = 12;
     let globalCloudData = []; 
+    let loggedInUser = localStorage.getItem('croftview_player');
+    
+    // Scanned URL Parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const scannedCode = urlParams.get('found');
+
+    let currentActionType = ""; // 'trade' or 'steal'
 
     // =========================================================================
     // INITIALIZATION
@@ -291,17 +357,17 @@
     async function initApp() {
       populateDropdowns();
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const scannedCode = urlParams.get('found');
+      if (loggedInUser) {
+        document.getElementById('profile-bar').style.display = 'flex';
+        document.getElementById('display-logged-user').textContent = loggedInUser;
+        document.getElementById('claim-login-section').style.display = 'none'; // Hide name select if logged in
+      }
 
       if (scannedCode) {
         document.getElementById('claim-view').style.display = 'block';
-        document.getElementById('dashboard-view').style.display = 'none';
-        document.getElementById('claim-btn').onclick = () => handleClaim(scannedCode);
       } else {
-        document.getElementById('claim-view').style.display = 'none';
         document.getElementById('dashboard-view').style.display = 'flex';
-        await loadAndRenderDashboard();
+        await refreshData();
       }
 
       document.getElementById('wallet-select').addEventListener('change', (e) => {
@@ -320,8 +386,13 @@
       });
     }
 
+    function logout() {
+      localStorage.removeItem('croftview_player');
+      location.reload();
+    }
+
     // =========================================================================
-    // CORE LOGIC & DRAWING
+    // CORE GAME LOGIC (CLAIMING)
     // =========================================================================
     function drawRandomItem() {
       const rand = Math.random() * 100;
@@ -330,7 +401,7 @@
         cumulative += data.chance;
         if (rand <= cumulative) return name;
       }
-      return "Slice of Compulsory Cake"; // Failsafe
+      return "Slice of Compulsory Cake";
     }
 
     function calculatePlayerProgress(playerArtifacts) {
@@ -340,87 +411,291 @@
       
       let progress = 0;
       for (const [name, data] of Object.entries(ITEMS)) {
-        if (data.type === 'artifact') {
-           progress += Math.min(counts[name] || 0, data.req); // Cap at requirement max
-        }
+        if (data.type === 'artifact') progress += Math.min(counts[name] || 0, data.req);
       }
       return progress;
     }
 
-    async function handleClaim(code) {
-      const select = document.getElementById('player-select');
-      const name = select.value;
+    async function handleClaim() {
+      let name = loggedInUser;
+      if (!name) {
+        name = document.getElementById('player-select').value;
+        if (!name) return alert("Please tell us who you are first!");
+        localStorage.setItem('croftview_player', name);
+        loggedInUser = name;
+        document.getElementById('profile-bar').style.display = 'flex';
+        document.getElementById('display-logged-user').textContent = name;
+      }
+
       const btn = document.getElementById('claim-btn');
-
-      if (!name) { alert("Please tell us who you are first!"); return; }
-
       btn.disabled = true;
       btn.textContent = "Drawing...";
-      select.disabled = true;
 
       globalCloudData = await fetchCloudData();
-      let player = globalCloudData.find(p => p.name === name);
+      let player = getPlayerObj(name);
 
-      if (!player) {
-        player = { name: name, codes: [], artifacts: [] };
-        globalCloudData.push(player);
-      }
-      if (!player.artifacts) player.artifacts = [];
-
-      if (!player.codes.includes(code)) {
-        
-        // Check if this is their very first scan
+      if (!player.codes.includes(scannedCode)) {
         const isFirstScan = player.codes.length === 0;
         const numberOfDraws = isFirstScan ? 3 : 1;
         
         const drawnItems = [];
-        for(let i = 0; i < numberOfDraws; i++) {
-            drawnItems.push(drawRandomItem());
-        }
+        for(let i = 0; i < numberOfDraws; i++) drawnItems.push(drawRandomItem());
         
-        player.codes.push(code);
+        player.codes.push(scannedCode);
         player.artifacts.push(...drawnItems);
         
         await pushToCloud(globalCloudData);
         triggerCelebration();
 
-        // Format nice alert message
         const visualItems = drawnItems.map(item => `${ITEMS[item].icon} ${item}`).join(', ');
         const introText = isFirstScan ? "🎉 FIRST SCAN BONUS! You drew 3 items:<br>" : "🎉 You found a code and drew:<br>";
         showStatus(`${introText} ${visualItems}`, "#22c55e");
         
-        // Check Win Condition
-        const currentProgress = calculatePlayerProgress(player.artifacts);
-        if (currentProgress === TOTAL_REQUIRED_TO_WIN) {
-            setTimeout(() => {
-                alert(`🏆 INCREDIBLE! ${name} has collected all 12 required artifacts and WON THE GAME!`);
-            }, 500);
+        if (calculatePlayerProgress(player.artifacts) === TOTAL_REQUIRED_TO_WIN) {
+            setTimeout(() => alert(`🏆 INCREDIBLE! ${name} collected 12 required artifacts and WON!`), 500);
         }
-
       } else {
-        showStatus(`Whoops! You already claimed Code ${code}, ${name}! Find a new one to draw again.`, "#f59e0b");
+        showStatus(`Whoops! You already claimed Code ${scannedCode}, ${name}! Find a new one.`, "#f59e0b");
       }
 
-      // Switch views and clean URL
       document.getElementById('claim-view').style.display = 'none';
       document.getElementById('dashboard-view').style.display = 'flex';
-      document.getElementById('wallet-select').value = name;
       window.history.replaceState({}, document.title, window.location.pathname);
 
+      // FORCE RENDER NEW WALLET DATA
+      document.getElementById('wallet-select').value = name;
       renderLeaderboard();
       renderWallet(name);
+      checkNotifications();
     }
 
-    async function loadAndRenderDashboard() {
+    // =========================================================================
+    // MODALS, ACTIONS & NOTIFICATIONS
+    // =========================================================================
+    function getPlayerObj(name) {
+      let p = globalCloudData.find(x => x.name === name);
+      if (!p) {
+        p = { name: name, codes: [], artifacts: [], notifications: [] };
+        globalCloudData.push(p);
+      }
+      if (!p.notifications) p.notifications = [];
+      return p;
+    }
+
+    async function refreshData() {
       globalCloudData = await fetchCloudData();
       renderLeaderboard();
+      if(loggedInUser) {
+          checkNotifications();
+          // Keep current wallet view updated
+          const currentlyViewing = document.getElementById('wallet-select').value;
+          if (currentlyViewing) renderWallet(currentlyViewing);
+      }
     }
 
+    function checkNotifications() {
+        if(!loggedInUser) return;
+        const me = getPlayerObj(loggedInUser);
+        const pending = me.notifications.filter(n => !n.read);
+        const badge = document.getElementById('notif-badge');
+        
+        if(pending.length > 0) {
+            badge.style.display = 'block';
+            badge.textContent = pending.length;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    // --- Action Modal Setup ---
+    function openActionModal(itemName) {
+      document.getElementById('action-modal').style.display = 'flex';
+      const targetSelect = document.getElementById('action-target-player');
+      targetSelect.innerHTML = '<option value="" disabled selected>Select player...</option>';
+      
+      // Populate targets (excluding self)
+      globalCloudData.forEach(p => {
+        if(p.name !== loggedInUser && p.artifacts && p.artifacts.length > 0) {
+          targetSelect.appendChild(new Option(p.name, p.name));
+        }
+      });
+
+      if (itemName === 'Hand of God') {
+          currentActionType = 'steal';
+          document.getElementById('action-title').innerHTML = `⚡ Use Hand of God`;
+          document.getElementById('action-desc').textContent = "Steal any artifact from a player! This consumes your Hand of God.";
+          document.getElementById('trade-offer-section').style.display = 'none';
+      } else {
+          currentActionType = 'trade';
+          document.getElementById('action-title').innerHTML = `🤝 Use Trade Token`;
+          document.getElementById('action-desc').textContent = "Propose a trade. If they decline, your Trade Token is still lost!";
+          document.getElementById('trade-offer-section').style.display = 'block';
+          
+          // Populate my own items for offer (excluding Trade Tokens to prevent trading tokens)
+          const me = getPlayerObj(loggedInUser);
+          const offerSelect = document.getElementById('action-offer-item');
+          offerSelect.innerHTML = '<option value="" disabled selected>Select item to offer...</option>';
+          const myUniqueItems = [...new Set(me.artifacts)];
+          myUniqueItems.forEach(item => {
+              if (item !== 'Trade Token') offerSelect.appendChild(new Option(item, item));
+          });
+      }
+    }
+
+    function populateActionItems() {
+      const targetName = document.getElementById('action-target-player').value;
+      const itemSelect = document.getElementById('action-target-item');
+      itemSelect.innerHTML = '<option value="" disabled selected>Select item...</option>';
+      
+      const target = getPlayerObj(targetName);
+      const uniqueItems = [...new Set(target.artifacts)];
+      uniqueItems.forEach(item => {
+        itemSelect.appendChild(new Option(item, item));
+      });
+    }
+
+    async function submitAction() {
+      const targetName = document.getElementById('action-target-player').value;
+      const targetItem = document.getElementById('action-target-item').value;
+      
+      if(!targetName || !targetItem) return alert("Please fill out all fields.");
+      
+      // Always fetch fresh data right before a destructive action
+      document.getElementById('action-submit-btn').textContent = "Processing...";
+      globalCloudData = await fetchCloudData(); 
+      
+      const me = getPlayerObj(loggedInUser);
+      const target = getPlayerObj(targetName);
+      
+      if (currentActionType === 'steal') {
+          // Verify I still have Hand of God and they still have item
+          if(!me.artifacts.includes('Hand of God')) return alert("You don't have a Hand of God!");
+          if(!target.artifacts.includes(targetItem)) return alert("They no longer have that item!");
+          
+          // Execute Steal
+          me.artifacts.splice(me.artifacts.indexOf('Hand of God'), 1);
+          target.artifacts.splice(target.artifacts.indexOf(targetItem), 1);
+          me.artifacts.push(targetItem);
+          
+          target.notifications.push({
+              id: Date.now().toString(),
+              type: 'alert', read: false,
+              msg: `⚡ ${loggedInUser} used the Hand of God to steal your ${targetItem}!`
+          });
+          
+          await pushToCloud(globalCloudData);
+          alert(`Success! You stole ${targetItem} from ${targetName}.`);
+
+      } else if (currentActionType === 'trade') {
+          const offerItem = document.getElementById('action-offer-item').value;
+          if(!offerItem) return alert("Select an item to offer.");
+          if(!me.artifacts.includes('Trade Token')) return alert("You don't have a Trade Token!");
+          if(!me.artifacts.includes(offerItem)) return alert("You don't have the item you are offering!");
+          
+          // Execute Trade Request
+          me.artifacts.splice(me.artifacts.indexOf('Trade Token'), 1);
+          target.notifications.push({
+              id: Date.now().toString(),
+              type: 'trade', read: false,
+              from: loggedInUser, offer: offerItem, request: targetItem
+          });
+          
+          await pushToCloud(globalCloudData);
+          alert(`Trade request sent to ${targetName}! Token consumed.`);
+      }
+
+      closeModal('action-modal');
+      document.getElementById('action-submit-btn').textContent = "Submit";
+      refreshData();
+    }
+
+    // --- Notifications Viewer ---
+    function openNotifModal() {
+      const me = getPlayerObj(loggedInUser);
+      const list = document.getElementById('notif-list');
+      list.innerHTML = "";
+
+      if(me.notifications.length === 0) {
+          list.innerHTML = "<p style='opacity:0.6;'>No notifications.</p>";
+      } else {
+          // Show newest first
+          [...me.notifications].reverse().forEach(n => {
+              const div = document.createElement('div');
+              div.className = 'notif-item';
+              
+              if(n.type === 'alert') {
+                  div.innerHTML = `<p style="margin:0; font-size:0.9rem;">${n.msg}</p>
+                                   ${!n.read ? `<button class="btn btn-secondary" style="padding:0.25rem; font-size:0.75rem; margin-top:5px;" onclick="markRead('${n.id}')">Dismiss</button>` : `<span style="font-size:0.7rem; opacity:0.5;">Read</span>`}`;
+              } else if (n.type === 'trade') {
+                  if(!n.read) {
+                      div.innerHTML = `
+                        <p style="margin:0 0 5px 0; font-size:0.9rem;"><strong>🤝 Trade Offer from ${n.from}:</strong><br>They offer: ${n.offer}<br>They want: ${n.request}</p>
+                        <div class="notif-actions">
+                            <button class="btn btn-success" style="padding:0.4rem; flex:1;" onclick="handleTrade('${n.id}', true)">Accept</button>
+                            <button class="btn btn-danger" style="padding:0.4rem; flex:1;" onclick="handleTrade('${n.id}', false)">Decline</button>
+                        </div>`;
+                  } else {
+                      div.innerHTML = `<p style="margin:0; font-size:0.9rem; opacity:0.5;">Trade from ${n.from} (Resolved)</p>`;
+                  }
+              }
+              list.appendChild(div);
+          });
+      }
+      document.getElementById('notif-modal').style.display = 'flex';
+    }
+
+    async function markRead(id) {
+        globalCloudData = await fetchCloudData(); // Sync first
+        const me = getPlayerObj(loggedInUser);
+        const notif = me.notifications.find(n => n.id === id);
+        if(notif) notif.read = true;
+        await pushToCloud(globalCloudData);
+        openNotifModal();
+        checkNotifications();
+    }
+
+    async function handleTrade(id, isAccepted) {
+        globalCloudData = await fetchCloudData(); // Sync first to verify items exist
+        const me = getPlayerObj(loggedInUser);
+        const notif = me.notifications.find(n => n.id === id);
+        if(!notif) return;
+        
+        const them = getPlayerObj(notif.from);
+
+        if (isAccepted) {
+            // Verify items still exist
+            if(me.artifacts.includes(notif.request) && them.artifacts.includes(notif.offer)) {
+                // Swap
+                me.artifacts.splice(me.artifacts.indexOf(notif.request), 1);
+                me.artifacts.push(notif.offer);
+                them.artifacts.splice(them.artifacts.indexOf(notif.offer), 1);
+                them.artifacts.push(notif.request);
+                
+                them.notifications.push({ id: Date.now().toString(), type: 'alert', read: false, msg: `✅ ${loggedInUser} accepted your trade for the ${notif.request}!`});
+                alert("Trade successful!");
+            } else {
+                alert("Trade failed: Someone no longer has the required items.");
+                them.notifications.push({ id: Date.now().toString(), type: 'alert', read: false, msg: `❌ Trade with ${loggedInUser} failed (items missing).`});
+            }
+        } else {
+            them.notifications.push({ id: Date.now().toString(), type: 'alert', read: false, msg: `❌ ${loggedInUser} declined your trade.`});
+        }
+        
+        notif.read = true;
+        await pushToCloud(globalCloudData);
+        openNotifModal();
+        refreshData();
+    }
+
+    // =========================================================================
+    // RENDERERS
+    // =========================================================================
     function renderLeaderboard() {
       const listContainer = document.getElementById('leaderboard-list');
       let activePlayers = globalCloudData.filter(p => p.artifacts && p.artifacts.length > 0);
       
-      // Sort by valid progress first, then by total items held
       activePlayers.sort((a, b) => {
         const progA = calculatePlayerProgress(a.artifacts);
         const progB = calculatePlayerProgress(b.artifacts);
@@ -429,20 +704,15 @@
       });
 
       listContainer.innerHTML = "";
-      if (activePlayers.length === 0) {
-        listContainer.innerHTML = "<p style='opacity:0.6; text-align: center;'>No codes found yet!</p>";
-        return;
-      }
+      if (activePlayers.length === 0) return listContainer.innerHTML = "<p style='opacity:0.6; text-align: center;'>No codes found yet!</p>";
 
       activePlayers.forEach(p => {
         const progress = calculatePlayerProgress(p.artifacts);
-        
         const row = document.createElement('div');
         row.className = 'leader-row';
         row.innerHTML = `
             <span class="leader-name">${p.name} ${progress === TOTAL_REQUIRED_TO_WIN ? '👑' : ''}</span>
-            <span class="leader-score">${progress}/12 Required<br>
-            <span style="font-size:0.75rem; font-weight:normal; opacity:0.8;">(${p.codes.length} Codes Scanned)</span></span>
+            <span class="leader-score">${progress}/12 Req<br><span style="font-size:0.75rem; font-weight:normal; opacity:0.8;">(${p.codes.length} Codes)</span></span>
         `;
         listContainer.appendChild(row);
       });
@@ -454,50 +724,44 @@
       document.getElementById('artifacts-header').style.display = 'block';
       document.getElementById('actions-header').style.display = 'block';
       
-      artGrid.innerHTML = "";
-      actGrid.innerHTML = "";
+      artGrid.innerHTML = ""; actGrid.innerHTML = "";
 
-      const player = globalCloudData.find(p => p.name === playerName);
-      const playerArtifacts = player && player.artifacts ? player.artifacts : [];
-
+      const player = getPlayerObj(playerName);
       const counts = {};
-      playerArtifacts.forEach(art => counts[art] = (counts[art] || 0) + 1);
+      player.artifacts.forEach(art => counts[art] = (counts[art] || 0) + 1);
+
+      let hasActions = false;
 
       for (const [itemName, data] of Object.entries(ITEMS)) {
         const count = counts[itemName] || 0;
         const badge = document.createElement('div');
         
         if (data.type === 'artifact') {
-            // ARTIFACT LOGIC
             let statusClass = 'locked';
             if (count >= data.req) statusClass = 'completed';
             else if (count > 0) statusClass = 'partial';
 
             badge.className = `badge ${statusClass}`;
-            badge.innerHTML = `
-                <span class="icon">${data.icon}</span>
-                <span class="count">${count}/${data.req}</span>
-                <span class="title">${itemName}</span>
-            `;
+            badge.innerHTML = `<span class="icon">${data.icon}</span><span class="count">${count}/${data.req}</span><span class="title">${itemName}</span>`;
             artGrid.appendChild(badge);
-        } else {
-            // ACTION ITEM LOGIC
-            if (count > 0) {
-                badge.className = `badge action-item`;
-                badge.innerHTML = `
-                    <span class="icon">${data.icon}</span>
-                    <span class="count">${count}x</span>
-                    <span class="title">${itemName}</span>
-                `;
-                actGrid.appendChild(badge);
+        } else if (count > 0) {
+            hasActions = true;
+            badge.className = `badge action-item`;
+            
+            // Make action items clickable if it's YOUR wallet
+            if (playerName === loggedInUser) {
+                badge.classList.add('clickable');
+                badge.onclick = () => openActionModal(itemName);
             }
+            
+            badge.innerHTML = `<span class="icon">${data.icon}</span><span class="count">${count}x</span><span class="title">${itemName}</span>`;
+            actGrid.appendChild(badge);
         }
       }
 
-      // If no action items, show a placeholder
-      if (actGrid.innerHTML === "") {
-          actGrid.innerHTML = "<p style='font-size: 0.85rem; opacity: 0.6;'>No action items found yet.</p>";
-      }
+      if (!hasActions) actGrid.innerHTML = "<p style='font-size: 0.85rem; opacity: 0.6;'>No action items found.</p>";
+      
+      document.getElementById('action-hint').style.display = (hasActions && playerName === loggedInUser) ? 'block' : 'none';
     }
 
     function showStatus(message, color) {
@@ -508,85 +772,53 @@
     }
 
     // =========================================================================
-    // BACKEND (JSONBIN.IO)
+    // API CALLS & VISUALS
     // =========================================================================
     async function fetchCloudData() {
       try {
-        const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-          headers: { 'X-Master-Key': API_KEY }
-        });
+        const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, { headers: { 'X-Master-Key': API_KEY } });
         const data = await res.json();
         return data.record.players || [];
-      } catch (err) {
-        console.error("Failed to fetch cloud leaderboard:", err);
-        return [];
-      }
+      } catch (err) { return []; }
     }
 
     async function pushToCloud(updatedPlayers) {
       try {
         await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Master-Key': API_KEY
-          },
+          headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
           body: JSON.stringify({ players: updatedPlayers })
         });
-      } catch (err) {
-        console.error("Failed to sync to cloud:", err);
-      }
+      } catch (err) {}
     }
 
-    // =========================================================================
-    // CANVAS CELEBRATION EFFECT
-    // =========================================================================
     function triggerCelebration() {
       const canvas = document.getElementById('particle-canvas');
       const ctx = canvas.getContext('2d');
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-
-      const particles = [];
-      const colors = ['#38bdf8', '#f59e0b', '#22c55e', '#ec4899', '#a855f7'];
+      canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+      const particles = [], colors = ['#38bdf8', '#f59e0b', '#22c55e', '#ec4899', '#a855f7'];
 
       for (let i = 0; i < 80; i++) {
         particles.push({
-          x: canvas.width / 2,
-          y: canvas.height / 2,
-          vx: (Math.random() - 0.5) * 12,
-          vy: (Math.random() - 0.5) * 12,
+          x: canvas.width / 2, y: canvas.height / 2,
+          vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12,
           color: colors[Math.floor(Math.random() * colors.length)],
-          size: Math.random() * 6 + 3,
-          alpha: 1
+          size: Math.random() * 6 + 3, alpha: 1
         });
       }
-
       function animate() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        let activeParticles = 0;
-
+        let active = 0;
         particles.forEach(p => {
           if (p.alpha > 0) {
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vy += 0.15; 
-            p.alpha -= 0.015;
-
-            ctx.globalAlpha = Math.max(0, p.alpha);
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fill();
-            activeParticles++;
+            p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.alpha -= 0.015;
+            ctx.globalAlpha = Math.max(0, p.alpha); ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            active++;
           }
         });
-
-        if (activeParticles > 0) {
-          requestAnimationFrame(animate);
-        } else {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
+        if (active > 0) requestAnimationFrame(animate);
+        else ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
       animate();
     }
