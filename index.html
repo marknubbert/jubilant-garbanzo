@@ -194,6 +194,7 @@
       text-align: center;
       display: none;
       line-height: 1.4;
+      margin-bottom: 1rem;
     }
 
     /* MODAL STYLES */
@@ -218,16 +219,26 @@
 
   <div class="container">
     
-    <!-- HEADER & PROFILE -->
     <div class="header">
       <h1>🏡 Croftview Hunt</h1>
     </div>
+
+    <!-- FORCED LOGIN SCREEN -->
+    <div id="login-view" class="card" style="display: none; text-align: center; border: 2px solid var(--accent); margin-top: 2rem;">
+      <h2 style="color: var(--accent); border: none; font-size: 1.5rem; padding: 0;">Welcome!</h2>
+      <p style="font-size: 1.1rem; line-height: 1.4; margin-bottom: 1.5rem;">Who is playing on this device?</p>
+      <select id="login-select" class="dropdown">
+        <option value="" disabled selected>Select your name...</option>
+      </select>
+      <button class="btn" onclick="performLogin()">Enter Game</button>
+    </div>
     
+    <!-- HEADER & PROFILE (Hidden until logged in) -->
     <div id="profile-bar" class="profile-bar" style="display: none;">
       <div>
         <span style="font-size: 0.85rem; opacity: 0.8;">Playing as:</span><br>
         <strong id="display-logged-user" style="color: var(--accent);">User</strong>
-        <a href="#" onclick="logout()" style="color: #94a3b8; font-size: 0.75rem; margin-left: 10px;">(Change)</a>
+        <a href="#" onclick="logout()" style="color: #94a3b8; font-size: 0.75rem; margin-left: 10px;">(Logout)</a>
       </div>
       <div style="display: flex; gap: 1rem;">
         <button onclick="refreshData()" title="Refresh Data">🔄</button>
@@ -237,18 +248,11 @@
       </div>
     </div>
 
-    <!-- CLAIM SCREEN -->
+    <!-- CLAIM SCREEN (Hidden until logged in AND code is scanned) -->
     <div id="claim-view" class="card" style="display: none; text-align: center; border: 2px solid var(--accent);">
       <h2 style="color: var(--accent); border: none; font-size: 1.5rem; padding: 0;">🎉 Code Found!</h2>
-      
-      <div id="claim-login-section">
-        <p style="font-size: 1.1rem; line-height: 1.4; margin-bottom: 1.5rem;">Who is scanning this code?</p>
-        <select id="player-select" class="dropdown">
-          <option value="" disabled selected>Select your name...</option>
-        </select>
-      </div>
-      
-      <button id="claim-btn" class="btn" onclick="handleClaim()">Claim Item(s)!</button>
+      <p style="font-size: 1.1rem; line-height: 1.4; margin-bottom: 1.5rem;">You have discovered a new QR code.</p>
+      <button id="claim-btn" class="btn" onclick="handleClaim()">Draw Item(s)!</button>
     </div>
 
     <!-- MAIN DASHBOARD -->
@@ -349,25 +353,20 @@
     const urlParams = new URLSearchParams(window.location.search);
     const scannedCode = urlParams.get('found');
 
-    let currentActionType = ""; // 'trade' or 'steal'
+    let currentActionType = ""; 
 
     // =========================================================================
-    // INITIALIZATION
+    // INITIALIZATION & LOGIN
     // =========================================================================
     async function initApp() {
       populateDropdowns();
 
-      if (loggedInUser) {
-        document.getElementById('profile-bar').style.display = 'flex';
-        document.getElementById('display-logged-user').textContent = loggedInUser;
-        document.getElementById('claim-login-section').style.display = 'none'; // Hide name select if logged in
-      }
-
-      if (scannedCode) {
-        document.getElementById('claim-view').style.display = 'block';
+      if (!loggedInUser) {
+        // Not logged in -> Show forced login screen
+        document.getElementById('login-view').style.display = 'block';
       } else {
-        document.getElementById('dashboard-view').style.display = 'flex';
-        await refreshData();
+        // Logged in -> Proceed directly to the game
+        await continueInit();
       }
 
       document.getElementById('wallet-select').addEventListener('change', (e) => {
@@ -376,14 +375,37 @@
     }
 
     function populateDropdowns() {
-      const claimSelect = document.getElementById('player-select');
+      const loginSelect = document.getElementById('login-select');
       const walletSelect = document.getElementById('wallet-select');
       const sortedPlayers = [...PLAYERS].sort();
 
       sortedPlayers.forEach(player => {
-        claimSelect.appendChild(new Option(player, player));
+        loginSelect.appendChild(new Option(player, player));
         walletSelect.appendChild(new Option(player, player));
       });
+    }
+
+    function performLogin() {
+      const name = document.getElementById('login-select').value;
+      if (!name) return alert("Please select your name.");
+      
+      localStorage.setItem('croftview_player', name);
+      loggedInUser = name;
+      document.getElementById('login-view').style.display = 'none';
+      
+      continueInit();
+    }
+
+    async function continueInit() {
+      document.getElementById('profile-bar').style.display = 'flex';
+      document.getElementById('display-logged-user').textContent = loggedInUser;
+
+      if (scannedCode) {
+        document.getElementById('claim-view').style.display = 'block';
+      } else {
+        document.getElementById('dashboard-view').style.display = 'flex';
+        await refreshData();
+      }
     }
 
     function logout() {
@@ -417,22 +439,12 @@
     }
 
     async function handleClaim() {
-      let name = loggedInUser;
-      if (!name) {
-        name = document.getElementById('player-select').value;
-        if (!name) return alert("Please tell us who you are first!");
-        localStorage.setItem('croftview_player', name);
-        loggedInUser = name;
-        document.getElementById('profile-bar').style.display = 'flex';
-        document.getElementById('display-logged-user').textContent = name;
-      }
-
       const btn = document.getElementById('claim-btn');
       btn.disabled = true;
       btn.textContent = "Drawing...";
 
       globalCloudData = await fetchCloudData();
-      let player = getPlayerObj(name);
+      let player = getPlayerObj(loggedInUser);
 
       if (!player.codes.includes(scannedCode)) {
         const isFirstScan = player.codes.length === 0;
@@ -452,20 +464,21 @@
         showStatus(`${introText} ${visualItems}`, "#22c55e");
         
         if (calculatePlayerProgress(player.artifacts) === TOTAL_REQUIRED_TO_WIN) {
-            setTimeout(() => alert(`🏆 INCREDIBLE! ${name} collected 12 required artifacts and WON!`), 500);
+            setTimeout(() => alert(`🏆 INCREDIBLE! ${loggedInUser} collected 12 required artifacts and WON!`), 500);
         }
       } else {
-        showStatus(`Whoops! You already claimed Code ${scannedCode}, ${name}! Find a new one.`, "#f59e0b");
+        showStatus(`Whoops! You already claimed Code ${scannedCode}! Find a new one.`, "#f59e0b");
       }
 
+      // Switch views and clear URL
       document.getElementById('claim-view').style.display = 'none';
       document.getElementById('dashboard-view').style.display = 'flex';
       window.history.replaceState({}, document.title, window.location.pathname);
 
-      // FORCE RENDER NEW WALLET DATA
-      document.getElementById('wallet-select').value = name;
+      // Instantly render updated state
       renderLeaderboard();
-      renderWallet(name);
+      document.getElementById('wallet-select').value = loggedInUser;
+      renderWallet(loggedInUser);
       checkNotifications();
     }
 
@@ -485,21 +498,21 @@
     async function refreshData() {
       globalCloudData = await fetchCloudData();
       renderLeaderboard();
-      if(loggedInUser) {
+      if (loggedInUser) {
           checkNotifications();
-          // Keep current wallet view updated
-          const currentlyViewing = document.getElementById('wallet-select').value;
-          if (currentlyViewing) renderWallet(currentlyViewing);
+          const currentlyViewing = document.getElementById('wallet-select').value || loggedInUser;
+          document.getElementById('wallet-select').value = currentlyViewing;
+          renderWallet(currentlyViewing);
       }
     }
 
     function checkNotifications() {
-        if(!loggedInUser) return;
+        if (!loggedInUser) return;
         const me = getPlayerObj(loggedInUser);
         const pending = me.notifications.filter(n => !n.read);
         const badge = document.getElementById('notif-badge');
         
-        if(pending.length > 0) {
+        if (pending.length > 0) {
             badge.style.display = 'block';
             badge.textContent = pending.length;
         } else {
@@ -525,7 +538,7 @@
       if (itemName === 'Hand of God') {
           currentActionType = 'steal';
           document.getElementById('action-title').innerHTML = `⚡ Use Hand of God`;
-          document.getElementById('action-desc').textContent = "Steal any artifact from a player! This consumes your Hand of God.";
+          document.getElementById('action-desc').textContent = "Steal an artifact from a player! This consumes your Hand of God.";
           document.getElementById('trade-offer-section').style.display = 'none';
       } else {
           currentActionType = 'trade';
@@ -533,13 +546,12 @@
           document.getElementById('action-desc').textContent = "Propose a trade. If they decline, your Trade Token is still lost!";
           document.getElementById('trade-offer-section').style.display = 'block';
           
-          // Populate my own items for offer (excluding Trade Tokens to prevent trading tokens)
           const me = getPlayerObj(loggedInUser);
           const offerSelect = document.getElementById('action-offer-item');
           offerSelect.innerHTML = '<option value="" disabled selected>Select item to offer...</option>';
           const myUniqueItems = [...new Set(me.artifacts)];
           myUniqueItems.forEach(item => {
-              if (item !== 'Trade Token') offerSelect.appendChild(new Option(item, item));
+              if (ITEMS[item].type === 'artifact') offerSelect.appendChild(new Option(item, item));
           });
       }
     }
@@ -547,12 +559,16 @@
     function populateActionItems() {
       const targetName = document.getElementById('action-target-player').value;
       const itemSelect = document.getElementById('action-target-item');
-      itemSelect.innerHTML = '<option value="" disabled selected>Select item...</option>';
+      itemSelect.innerHTML = '<option value="" disabled selected>Select artifact...</option>';
       
       const target = getPlayerObj(targetName);
       const uniqueItems = [...new Set(target.artifacts)];
+      
       uniqueItems.forEach(item => {
-        itemSelect.appendChild(new Option(item, item));
+        // Enforce restriction: Only ARTIFACTS can be targeted for stealing or trading
+        if (ITEMS[item].type === 'artifact') {
+            itemSelect.appendChild(new Option(item, item));
+        }
       });
     }
 
@@ -562,7 +578,6 @@
       
       if(!targetName || !targetItem) return alert("Please fill out all fields.");
       
-      // Always fetch fresh data right before a destructive action
       document.getElementById('action-submit-btn').textContent = "Processing...";
       globalCloudData = await fetchCloudData(); 
       
@@ -570,11 +585,9 @@
       const target = getPlayerObj(targetName);
       
       if (currentActionType === 'steal') {
-          // Verify I still have Hand of God and they still have item
           if(!me.artifacts.includes('Hand of God')) return alert("You don't have a Hand of God!");
-          if(!target.artifacts.includes(targetItem)) return alert("They no longer have that item!");
+          if(!target.artifacts.includes(targetItem)) return alert("They no longer have that artifact!");
           
-          // Execute Steal
           me.artifacts.splice(me.artifacts.indexOf('Hand of God'), 1);
           target.artifacts.splice(target.artifacts.indexOf(targetItem), 1);
           me.artifacts.push(targetItem);
@@ -590,11 +603,10 @@
 
       } else if (currentActionType === 'trade') {
           const offerItem = document.getElementById('action-offer-item').value;
-          if(!offerItem) return alert("Select an item to offer.");
+          if(!offerItem) return alert("Select an artifact to offer.");
           if(!me.artifacts.includes('Trade Token')) return alert("You don't have a Trade Token!");
-          if(!me.artifacts.includes(offerItem)) return alert("You don't have the item you are offering!");
+          if(!me.artifacts.includes(offerItem)) return alert("You don't have the artifact you are offering!");
           
-          // Execute Trade Request
           me.artifacts.splice(me.artifacts.indexOf('Trade Token'), 1);
           target.notifications.push({
               id: Date.now().toString(),
@@ -620,7 +632,6 @@
       if(me.notifications.length === 0) {
           list.innerHTML = "<p style='opacity:0.6;'>No notifications.</p>";
       } else {
-          // Show newest first
           [...me.notifications].reverse().forEach(n => {
               const div = document.createElement('div');
               div.className = 'notif-item';
@@ -647,7 +658,7 @@
     }
 
     async function markRead(id) {
-        globalCloudData = await fetchCloudData(); // Sync first
+        globalCloudData = await fetchCloudData();
         const me = getPlayerObj(loggedInUser);
         const notif = me.notifications.find(n => n.id === id);
         if(notif) notif.read = true;
@@ -657,7 +668,7 @@
     }
 
     async function handleTrade(id, isAccepted) {
-        globalCloudData = await fetchCloudData(); // Sync first to verify items exist
+        globalCloudData = await fetchCloudData(); 
         const me = getPlayerObj(loggedInUser);
         const notif = me.notifications.find(n => n.id === id);
         if(!notif) return;
@@ -665,9 +676,7 @@
         const them = getPlayerObj(notif.from);
 
         if (isAccepted) {
-            // Verify items still exist
             if(me.artifacts.includes(notif.request) && them.artifacts.includes(notif.offer)) {
-                // Swap
                 me.artifacts.splice(me.artifacts.indexOf(notif.request), 1);
                 me.artifacts.push(notif.offer);
                 them.artifacts.splice(them.artifacts.indexOf(notif.offer), 1);
@@ -676,8 +685,8 @@
                 them.notifications.push({ id: Date.now().toString(), type: 'alert', read: false, msg: `✅ ${loggedInUser} accepted your trade for the ${notif.request}!`});
                 alert("Trade successful!");
             } else {
-                alert("Trade failed: Someone no longer has the required items.");
-                them.notifications.push({ id: Date.now().toString(), type: 'alert', read: false, msg: `❌ Trade with ${loggedInUser} failed (items missing).`});
+                alert("Trade failed: Someone no longer has the required artifacts.");
+                them.notifications.push({ id: Date.now().toString(), type: 'alert', read: false, msg: `❌ Trade with ${loggedInUser} failed (artifacts missing).`});
             }
         } else {
             them.notifications.push({ id: Date.now().toString(), type: 'alert', read: false, msg: `❌ ${loggedInUser} declined your trade.`});
@@ -748,7 +757,6 @@
             hasActions = true;
             badge.className = `badge action-item`;
             
-            // Make action items clickable if it's YOUR wallet
             if (playerName === loggedInUser) {
                 badge.classList.add('clickable');
                 badge.onclick = () => openActionModal(itemName);
